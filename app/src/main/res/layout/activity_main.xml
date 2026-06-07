@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="#0d1117"
+    android:padding="16dp">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="M3U8 Extractor"
+        android:textColor="#58a6ff"
+        android:textSize="22sp"
+        android:textStyle="bold"
+        android:layout_marginBottom="16dp" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="IMDb ID"
+        android:textColor="#8b949e"
+        android:textSize="14sp" />
+
+    <EditText
+        android:id="@+id/imdbInput"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:hint="tt26443616"
+        android:textColorHint="#484f58"
+        android:textColor="#e6edf3"
+        android:background="#161b22"
+        android:padding="12dp"
+        android:layout_marginBottom="12dp"
+        android:singleLine="true"
+        android:inputType="text" />
+
+    <Button
+        android:id="@+id/extractBtn"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:text="Extract &amp; Play"
+        android:background="#238636"
+        android:textColor="#ffffff"
+        android:textSize="16sp"
+        android:layout_marginBottom="12dp" />
+
+    <ProgressBar
+        android:id="@+id/progress"
+        android:layout_width="match_parent"
+        android:layout_height="4dp"
+        android:visibility="gone"
+        android:layout_marginBottom="8dp"
+        style="?android:attr/progressBarStyleHorizontal" />
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/logText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textColor="#8b949e"
+                android:textSize="12sp"
+                android:fontFamily="monospace"
+                android:lineSpacingExtra="4dp" />
+
+            <LinearLayout
+                android:id="@+id/m3u8Box"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:background="#0d1117"
+                android:padding="12dp"
+                android:visibility="gone"
+                android:layout_marginTop="12dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="M3U8 Link (tap to copy)"
+                    android:textColor="#8b949e"
+                    android:textSize="12sp" />
+
+                <TextView
+                    android:id="@+id/m3u8Link"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:textColor="#3fb950"
+                    android:textSize="13sp"
+                    android:fontFamily="monospace" />
+            </LinearLayout>
+
+            <com.google.android.exoplayer2.ui.PlayerView
+                android:id="@+id/playerView"
+                android:layout_width="match_parent"
+                android:layout_height="220dp"
+                android:visibility="gone"
+                android:layout_marginTop="12dp" />
+
+        </LinearLayout>
+    </ScrollView>
+</LinearLayout>
