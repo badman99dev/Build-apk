@@ -249,7 +249,7 @@ public class MainActivity extends AppCompatActivity {
         for (Pattern p : patterns) {
             Matcher m = p.matcher(html);
             if (m.find()) {
-                String jsonStr = m.group(1).replaceAll("(?<!\\\\\\")\\'(?!\\\")", "\"");
+                String jsonStr = m.group(1).replace("'", "\"");
                 try {
                     return new JSONObject(jsonStr);
                 } catch (Exception e) {
