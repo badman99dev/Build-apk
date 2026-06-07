@@ -22,8 +22,6 @@ import com.google.android.exoplayer2.MediaItem;
 import com.google.android.exoplayer2.source.hls.HlsMediaSource;
 import com.google.android.exoplayer2.ui.PlayerView;
 import com.google.android.exoplayer2.upstream.DefaultHttpDataSource;
-import com.google.android.exoplayer2.upstream.DefaultHttpDataSourceFactory;
-import com.google.android.exoplayer2.util.Util;
 
 import org.json.JSONObject;
 
@@ -290,7 +288,7 @@ public class MainActivity extends AppCompatActivity {
         playerView.setPlayer(player);
         player.setMediaSource(hlsSource);
         player.prepare();
-        player.playWhenReady = true;
+        player.setPlayWhenReady(true);
     }
 
     private void releasePlayer() {
