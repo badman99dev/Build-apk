@@ -8,6 +8,12 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.view.View;
+import android.webkit.JavascriptInterface;
+import android.webkit.WebResourceRequest;
+import android.webkit.WebResourceResponse;
+import android.webkit.WebSettings;
+import android.webkit.WebView;
+import android.webkit.WebViewClient;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
@@ -23,15 +29,6 @@ import com.google.android.exoplayer2.source.hls.HlsMediaSource;
 import com.google.android.exoplayer2.ui.PlayerView;
 import com.google.android.exoplayer2.upstream.DefaultHttpDataSource;
 
-import org.json.JSONObject;
-
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-
-import okhttp3.OkHttpClient;
-import okhttp3.Request;
-import okhttp3.Response;
-
 public class MainActivity extends AppCompatActivity {
 
     private EditText imdbInput;
@@ -42,8 +39,9 @@ public class MainActivity extends AppCompatActivity {
     private LinearLayout m3u8Box;
     private PlayerView playerView;
     private ExoPlayer player;
-    private OkHttpClient client;
     private Handler handler;
+    private WebView extractWebView;
+    private volatile boolean m3u8Found;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -58,7 +56,6 @@ public class MainActivity extends AppCompatActivity {
         m3u8Box = findViewById(R.id.m3u8Box);
         playerView = findViewById(R.id.playerView);
         handler = new Handler(Looper.getMainLooper());
-        client = new OkHttpClient.Builder().followRedirects(true).followSslRedirects(true).build();
 
         Uri data = getIntent().getData();
         if (data != null && data.getPath() != null) {
@@ -106,164 +103,122 @@ public class MainActivity extends AppCompatActivity {
         playerView.setVisibility(View.GONE);
         logText.setText("");
         releasePlayer();
+        destroyWebView();
+        m3u8Found = false;
 
-        new Thread(() -> {
-            try {
-                log("Step 1: Fetching page source...", "info");
-                String pageUrl = "https://gemma416okl.com/play/" + imdbId;
-                String html = fetchGet(pageUrl, "https://gemma416okl.com/");
+        log("Loading player page in WebView...", "info");
 
-                if (html == null || html.contains("We are offline")) {
-                    log("Page offline or unreachable", "err");
-                    log("Trying CORS proxies...", "info");
-                    html = fetchViaCorsProxy(pageUrl);
-                }
+        extractWebView = new WebView(this);
+        WebSettings ws = extractWebView.getSettings();
+        ws.setJavaScriptEnabled(true);
+        ws.setDomStorageEnabled(true);
+        ws.setMediaPlaybackRequiresUserGesture(false);
+        ws.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
+        ws.setUserAgentString("Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Mobile Safari/537.36");
 
-                if (html == null) {
-                    log("FAILED: Could not fetch page", "err");
-                    finishExtraction();
-                    return;
-                }
+        extractWebView.addJavascriptInterface(new JsInterface(), "JSI");
 
-                log("Got source: " + html.length() + " bytes", "ok");
+        extractWebView.setWebViewClient(new WebViewClient() {
+            @Override
+            public void onPageFinished(WebView view, String url) {
+                log("Page loaded: " + url, "ok");
+                startPolling(view);
+            }
 
-                log("Step 2: Extracting player config...", "info");
-                JSONObject config = extractConfig(html);
-
-                if (config == null) {
-                    log("No player config found", "err");
-                    finishExtraction();
-                    return;
-                }
-
-                log("Config keys: " + config.keys().toString(), "ok");
-                String fileUrl = config.optString("file", "");
-                String referrer = config.optString("referrer", "gemma416okl.com");
-                int hls = config.optInt("hls", 0);
-                log("File URL: " + fileUrl, "info");
-                log("HLS: " + hls + " | Referrer: " + referrer, "info");
-
-                String m3u8Url = null;
-
-                if (!fileUrl.isEmpty()) {
-                    log("Step 3: Fetching playlist...", "info");
-                    String playlistData = fetchGet(fileUrl.replace("\\/", "/"), "https://" + referrer + "/");
-
-                    if (playlistData != null) {
-                        log("Playlist: " + playlistData.length() + " chars", "ok");
-
-                        try {
-                            JSONObject pj = new JSONObject(playlistData);
-                            if (pj.has("file")) m3u8Url = pj.getString("file").replace("\\/", "/");
-                            if (pj.has("hls_url")) m3u8Url = pj.getString("hls_url").replace("\\/", "/");
-                            if (pj.has("stream")) m3u8Url = pj.getString("stream").replace("\\/", "/");
-                        } catch (Exception e) {
-                            if (playlistData.trim().startsWith("#EXTM3U")) {
-                                m3u8Url = fileUrl.replace("\\/", "/");
-                            } else if (playlistData.trim().startsWith("http")) {
-                                m3u8Url = playlistData.trim();
-                            } else {
-                                log("Encoded playlist, trying CDN pattern...", "info");
-                            }
+            @Override
+            public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
+                String url = request.getUrl().toString();
+                if (!m3u8Found && url.contains(".m3u8")) {
+                    m3u8Found = true;
+                    String masterUrl = url;
+                    if (!url.contains("index.m3u8") && url.contains("/")) {
+                        int idx = url.lastIndexOf('/');
+                        String base = url.substring(0, idx + 1);
+                        if (!base.contains("index.m3u8")) {
+                            masterUrl = url;
                         }
                     }
+                    final String finalUrl = masterUrl;
+                    handler.post(() -> {
+                        log("M3U8 intercepted!", "ok");
+                        showM3U8(finalUrl);
+                    });
                 }
+                return super.shouldInterceptRequest(view, request);
+            }
 
-                if (m3u8Url == null) {
-                    log("Step 4: Scanning for m3u8 pattern...", "info");
-                    Pattern p = Pattern.compile("https?://[^\"'\\s]+\\.m3u8[^\"'\\s]*");
-                    Matcher m = p.matcher(html);
-                    if (m.find()) m3u8Url = m.group();
-                }
+            @Override
+            public void onReceivedError(WebView view, int errorCode, String description, String failingUrl) {
+                log("WebView error: " + description, "err");
+            }
+        });
 
-                if (m3u8Url == null) {
-                    log("M3U8 not found", "err");
-                    finishExtraction();
-                    return;
-                }
+        String pageUrl = "https://gemma416okl.com/play/" + imdbId;
+        extractWebView.loadUrl(pageUrl);
 
-                log("M3U8 FOUND: " + m3u8Url, "ok");
-
-                String finalUrl = m3u8Url;
-                handler.post(() -> {
-                    m3u8Box.setVisibility(View.VISIBLE);
-                    m3u8Link.setText(finalUrl);
-                    log("Starting player...", "ok");
-                    startPlayer(finalUrl);
-                    finishExtraction();
-                });
-
-            } catch (Exception e) {
-                log("Error: " + e.getMessage(), "err");
+        handler.postDelayed(() -> {
+            if (!m3u8Found) {
+                log("WebView timeout after 45s", "err");
                 finishExtraction();
             }
-        }).start();
+        }, 45000);
     }
 
-    private String fetchGet(String url, String referer) {
-        try {
-            Request.Builder rb = new Request.Builder().url(url).get();
-            rb.header("Referer", referer);
-            rb.header("User-Agent", "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Mobile Safari/537.36");
-            rb.header("Accept", "text/html,application/json,*/*");
-
-            Response resp = client.newCall(rb.build()).execute();
-            if (resp.isSuccessful() && resp.body() != null) {
-                return resp.body().string();
-            }
-            resp.close();
-        } catch (Exception e) {
-            log("GET error: " + e.getMessage(), "err");
-        }
-        return null;
-    }
-
-    private String fetchViaCorsProxy(String url) {
-        String[] proxies = {
-                "https://api.allorigins.win/raw?url=",
-                "https://corsproxy.io/?"
-        };
-        for (String proxy : proxies) {
-            try {
-                log("Trying proxy: " + proxy.split("/")[2], "info");
-                String resp = fetchGet(proxy + java.net.URLEncoder.encode(url, "UTF-8"), "");
-                if (resp != null && !resp.contains("We are offline") && resp.contains("player")) {
-                    return resp;
-                }
-            } catch (Exception e) {
-                log("Proxy error: " + e.getMessage(), "err");
-            }
-        }
-        return null;
-    }
-
-    private JSONObject extractConfig(String html) {
-        Pattern[] patterns = {
-                Pattern.compile("let\\s+p3\\s*=\\s*(\\{[^;]+\\});", Pattern.DOTALL),
-                Pattern.compile("(\\{\"file\":\\s*\"[^\"]+\"[^}]*\\})"),
-                Pattern.compile("o_params\\s*=\\s*(\\{[^;]+\\});", Pattern.DOTALL)
-        };
-
-        for (Pattern p : patterns) {
-            Matcher m = p.matcher(html);
-            if (m.find()) {
-                String jsonStr = m.group(1).replace("'", "\"");
-                try {
-                    return new JSONObject(jsonStr);
-                } catch (Exception e) {
-                    log("JSON parse error, cleaning...", "info");
-                    try {
-                        String cleaned = jsonStr.replaceAll("(\\w+)\\s*:", "\"$1\":")
-                                .replaceAll(":\\s*'([^']*)'", ":\"$1\"")
-                                .replaceAll(",\\s*}", "}");
-                        return new JSONObject(cleaned);
-                    } catch (Exception e2) {
-                        log("Still can't parse", "err");
-                    }
+    private void startPolling(WebView view) {
+        Runnable poll = new Runnable() {
+            @Override
+            public void run() {
+                if (m3u8Found) return;
+                view.evaluateJavascript(
+                    "(function(){" +
+                    "  try {" +
+                    "    var vids = document.querySelectorAll('video');" +
+                    "    for(var i=0;i<vids.length;i++){" +
+                    "      if(vids[i].src && vids[i].src.indexOf('.m3u8') > -1){" +
+                    "        window.JSI.onM3U8(vids[i].src);" +
+                    "        return;" +
+                    "      }" +
+                    "    }" +
+                    "  } catch(e){}" +
+                    "})()", null);
+                if (!m3u8Found) {
+                    handler.postDelayed(this, 2000);
                 }
             }
+        };
+        handler.postDelayed(poll, 3000);
+    }
+
+    private class JsInterface {
+        @JavascriptInterface
+        public void onM3U8(String url) {
+            if (!m3u8Found && url != null && url.contains(".m3u8")) {
+                m3u8Found = true;
+                handler.post(() -> {
+                    log("M3U8 from JS!", "ok");
+                    showM3U8(url);
+                });
+            }
         }
-        return null;
+
+        @JavascriptInterface
+        public void onConfig(String json) {
+            log("Config: " + json, "info");
+        }
+
+        @JavascriptInterface
+        public void onError(String msg) {
+            log("JS: " + msg, "err");
+        }
+    }
+
+    private void showM3U8(String url) {
+        m3u8Box.setVisibility(View.VISIBLE);
+        m3u8Link.setText(url);
+        log("URL: " + url, "ok");
+        startPlayer(url);
+        finishExtraction();
+        destroyWebView();
     }
 
     private void startPlayer(String m3u8Url) {
@@ -298,6 +253,15 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    private void destroyWebView() {
+        if (extractWebView != null) {
+            extractWebView.stopLoading();
+            extractWebView.setWebViewClient(null);
+            extractWebView.destroy();
+            extractWebView = null;
+        }
+    }
+
     private void finishExtraction() {
         handler.post(() -> {
             extractBtn.setEnabled(true);
@@ -309,5 +273,6 @@ public class MainActivity extends AppCompatActivity {
     protected void onDestroy() {
         super.onDestroy();
         releasePlayer();
+        destroyWebView();
     }
 }
