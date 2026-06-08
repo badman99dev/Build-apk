@@ -33,7 +33,7 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Extract & play HLS streams"
+            android:text="Extract &amp; play HLS streams"
             android:textColor="#484f58"
             android:textSize="14sp"
             android:layout_marginBottom="32dp" />
