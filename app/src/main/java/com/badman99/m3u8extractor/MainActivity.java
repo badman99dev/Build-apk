@@ -250,22 +250,34 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private Object parsePlaylistResponse(String resp) throws Exception {
+        resp = resp.trim();
         if (resp.startsWith("[")) {
             return new JSONArray(resp);
+        } else if (resp.startsWith("{")) {
+            return new JSONObject(resp);
         } else if (resp.startsWith("#1")) {
             log("Encrypted (#1), decrypting...", "warn");
-            String decrypted = decryptSaltD(decryptPepper(resp.substring(2), -1));
+            String decrypted = decryptSaltD(decryptPepper(resp.substring(2), -1)).trim();
             if (decrypted.startsWith("[")) return new JSONArray(decrypted);
             if (decrypted.startsWith("{")) return new JSONObject(decrypted);
+            if (decrypted.contains(".m3u8")) return decrypted;
             log("Decrypted: " + decrypted.substring(0, Math.min(100, decrypted.length())));
             return null;
         } else if (resp.startsWith("#0")) {
             log("Encrypted (#0), decrypting...", "warn");
-            String decrypted = decryptSaltD(resp.substring(2));
+            String decrypted = decryptSaltD(resp.substring(2)).trim();
             if (decrypted.startsWith("[")) return new JSONArray(decrypted);
+            if (decrypted.startsWith("{")) return new JSONObject(decrypted);
+            if (decrypted.contains(".m3u8")) return decrypted;
             return null;
         } else if (resp.startsWith("#EXTM3U")) {
             log("Direct M3U8 response!", "ok");
+            return resp;
+        } else if (resp.startsWith("http") && resp.contains(".m3u8")) {
+            log("Direct M3U8 URL from sub-playlist!", "ok");
+            return resp;
+        } else if (resp.startsWith("http")) {
+            log("Got URL: " + resp.substring(0, Math.min(80, resp.length())), "info");
             return resp;
         } else {
             log("Unknown format: " + resp.substring(0, Math.min(50, resp.length())), "warn");
@@ -283,10 +295,40 @@ public class MainActivity extends AppCompatActivity {
                 Object item = arr.get(i);
                 if (item instanceof JSONObject) {
                     resolveItem((JSONObject) item, csrfKey, depth);
+                } else if (item instanceof String) {
+                    handleFileString((String) item, "", csrfKey, depth);
                 }
             }
         } else if (data instanceof JSONObject) {
             resolveItem((JSONObject) data, csrfKey, depth);
+        } else if (data instanceof String) {
+            handleFileString((String) data, "", csrfKey, depth);
+        }
+    }
+
+    private void handleFileString(String file, String title, String csrfKey, int depth) throws Exception {
+        if (file.contains(".m3u8")) {
+            log("  🎯 [" + (title.isEmpty() ? "Stream" : title) + "] M3U8 found!", "ok");
+            log("    " + file.substring(0, Math.min(80, file.length())) + "...", "ok");
+            streams.add(new StreamInfo(title.isEmpty() ? "Stream" : title, file));
+            handler.post(this::showResults);
+        } else if (file.startsWith("~")) {
+            String subUrl = FILE_PATH + file.substring(1) + ".txt";
+            log("  [" + title + "] Sub-playlist → POST " + subUrl.substring(0, Math.min(60, subUrl.length())) + "...");
+            String subResp = httpPost(subUrl, REFERER, csrfKey);
+            if (subResp != null) {
+                Object subParsed = parsePlaylistResponse(subResp);
+                step3_resolveItems(subParsed, csrfKey, depth + 1);
+            }
+        } else if (file.startsWith("http") && file.contains(".txt")) {
+            log("  [" + title + "] Sub-playlist → " + file.substring(0, Math.min(60, file.length())) + "...");
+            String subResp = httpPost(file, REFERER, csrfKey);
+            if (subResp != null) {
+                Object subParsed = parsePlaylistResponse(subResp);
+                step3_resolveItems(subParsed, csrfKey, depth + 1);
+            }
+        } else if (file.startsWith("http")) {
+            log("  [" + title + "] URL: " + file.substring(0, Math.min(60, file.length())), "warn");
         }
     }
 
@@ -294,41 +336,8 @@ public class MainActivity extends AppCompatActivity {
         String title = item.optString("title", "?");
         String file = item.optString("file", "");
 
-        if (file.startsWith("~")) {
-            String subUrl = FILE_PATH + file.substring(1) + ".txt";
-            log("  [" + title + "] Sub-playlist → POST " + subUrl.substring(0, Math.min(60, subUrl.length())) + "...");
-
-            String subResp = httpPost(subUrl, REFERER, csrfKey);
-            if (subResp == null) {
-                log("    Sub-playlist fetch failed", "err");
-                return;
-            }
-
-            Object subParsed = parsePlaylistResponse(subResp);
-            if (subParsed instanceof JSONArray) {
-                JSONArray subArr = (JSONArray) subParsed;
-                for (int i = 0; i < subArr.length(); i++) {
-                    Object si = subArr.get(i);
-                    if (si instanceof JSONObject) {
-                        resolveItem((JSONObject) si, csrfKey, depth + 1);
-                    }
-                }
-            } else if (subParsed instanceof JSONObject) {
-                resolveItem((JSONObject) subParsed, csrfKey, depth + 1);
-            }
-        } else if (file.contains(".m3u8")) {
-            log("  🎯 [" + title + "] M3U8 found!", "ok");
-            log("    " + file.substring(0, Math.min(80, file.length())) + "...", "ok");
-            streams.add(new StreamInfo(title, file));
-        } else if (file.contains(".txt") && file.startsWith("http")) {
-            log("  [" + title + "] Sub-playlist → " + file.substring(0, Math.min(60, file.length())) + "...");
-            String subResp = httpPost(file, REFERER, csrfKey);
-            if (subResp != null) {
-                Object subParsed = parsePlaylistResponse(subResp);
-                step3_resolveItems(subParsed, csrfKey, depth + 1);
-            }
-        } else if (!file.isEmpty()) {
-            log("  [" + title + "] File: " + file.substring(0, Math.min(60, file.length())), "info");
+        if (!file.isEmpty()) {
+            handleFileString(file, title, csrfKey, depth);
         }
 
         if (item.has("folder")) {
