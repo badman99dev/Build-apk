@@ -3,12 +3,12 @@ package com.badman99.m3u8extractor;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
+import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.view.View;
-import android.webkit.JavascriptInterface;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
@@ -32,16 +32,16 @@ import com.google.android.exoplayer2.upstream.DefaultHttpDataSource;
 public class MainActivity extends AppCompatActivity {
 
     private EditText imdbInput;
-    private Button extractBtn;
+    private Button extractBtn, copyBtn, playBtn;
     private ProgressBar progress;
-    private TextView logText;
-    private TextView m3u8Link;
-    private LinearLayout m3u8Box;
+    private TextView statusText, m3u8Link;
+    private LinearLayout resultBox;
     private PlayerView playerView;
     private ExoPlayer player;
     private Handler handler;
-    private WebView extractWebView;
-    private volatile boolean m3u8Found;
+    private WebView webView;
+    private volatile boolean found;
+    private String m3u8Url;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -51,9 +51,11 @@ public class MainActivity extends AppCompatActivity {
         imdbInput = findViewById(R.id.imdbInput);
         extractBtn = findViewById(R.id.extractBtn);
         progress = findViewById(R.id.progress);
-        logText = findViewById(R.id.logText);
+        statusText = findViewById(R.id.statusText);
         m3u8Link = findViewById(R.id.m3u8Link);
-        m3u8Box = findViewById(R.id.m3u8Box);
+        resultBox = findViewById(R.id.resultBox);
+        copyBtn = findViewById(R.id.copyBtn);
+        playBtn = findViewById(R.id.playBtn);
         playerView = findViewById(R.id.playerView);
         handler = new Handler(Looper.getMainLooper());
 
@@ -65,15 +67,6 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
-        m3u8Link.setOnClickListener(v -> {
-            String url = m3u8Link.getText().toString();
-            if (!url.isEmpty()) {
-                ClipboardManager cb = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
-                cb.setPrimaryClip(ClipData.newPlainText("m3u8", url));
-                Toast.makeText(this, "M3U8 copied!", Toast.LENGTH_SHORT).show();
-            }
-        });
-
         extractBtn.setOnClickListener(v -> {
             String id = imdbInput.getText().toString().trim();
             if (id.isEmpty()) {
@@ -82,146 +75,89 @@ public class MainActivity extends AppCompatActivity {
             }
             startExtraction(id);
         });
+
+        copyBtn.setOnClickListener(v -> {
+            if (m3u8Url != null) {
+                ClipboardManager cb = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+                cb.setPrimaryClip(ClipData.newPlainText("m3u8", m3u8Url));
+                Toast.makeText(this, "Copied!", Toast.LENGTH_SHORT).show();
+            }
+        });
+
+        playBtn.setOnClickListener(v -> {
+            if (m3u8Url != null) startPlayer(m3u8Url);
+        });
     }
 
-    private void log(String msg, String type) {
+    private void setStatus(String msg) {
         handler.post(() -> {
-            String color;
-            switch (type) {
-                case "ok": color = "#3fb950"; break;
-                case "err": color = "#f85149"; break;
-                case "info": default: color = "#58a6ff"; break;
-            }
-            logText.append("<font color='" + color + "'>" + msg + "</font><br>");
+            statusText.setVisibility(View.VISIBLE);
+            statusText.setText(msg);
         });
     }
 
     private void startExtraction(String imdbId) {
         extractBtn.setEnabled(false);
+        extractBtn.setAlpha(0.5f);
         progress.setVisibility(View.VISIBLE);
-        m3u8Box.setVisibility(View.GONE);
+        resultBox.setVisibility(View.GONE);
         playerView.setVisibility(View.GONE);
-        logText.setText("");
         releasePlayer();
         destroyWebView();
-        m3u8Found = false;
+        found = false;
+        m3u8Url = null;
 
-        log("Loading player page in WebView...", "info");
+        setStatus("Loading player page...");
 
-        extractWebView = new WebView(this);
-        WebSettings ws = extractWebView.getSettings();
+        webView = new WebView(this);
+        WebSettings ws = webView.getSettings();
         ws.setJavaScriptEnabled(true);
         ws.setDomStorageEnabled(true);
         ws.setMediaPlaybackRequiresUserGesture(false);
         ws.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
         ws.setUserAgentString("Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Mobile Safari/537.36");
+        ws.setLoadWithOverviewMode(true);
+        ws.setUseWideViewPort(true);
 
-        extractWebView.addJavascriptInterface(new JsInterface(), "JSI");
-
-        extractWebView.setWebViewClient(new WebViewClient() {
+        webView.setWebViewClient(new WebViewClient() {
             @Override
             public void onPageFinished(WebView view, String url) {
-                log("Page loaded: " + url, "ok");
-                startPolling(view);
+                setStatus("Page loaded, waiting for stream...");
             }
 
             @Override
             public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
                 String url = request.getUrl().toString();
-                if (!m3u8Found && url.contains(".m3u8")) {
-                    m3u8Found = true;
-                    String masterUrl = url;
-                    if (!url.contains("index.m3u8") && url.contains("/")) {
-                        int idx = url.lastIndexOf('/');
-                        String base = url.substring(0, idx + 1);
-                        if (!base.contains("index.m3u8")) {
-                            masterUrl = url;
-                        }
-                    }
-                    final String finalUrl = masterUrl;
-                    handler.post(() -> {
-                        log("M3U8 intercepted!", "ok");
-                        showM3U8(finalUrl);
-                    });
+                if (!found && url.contains(".m3u8")) {
+                    found = true;
+                    m3u8Url = url;
+                    handler.post(() -> onM3U8Found(url));
                 }
                 return super.shouldInterceptRequest(view, request);
             }
-
-            @Override
-            public void onReceivedError(WebView view, int errorCode, String description, String failingUrl) {
-                log("WebView error: " + description, "err");
-            }
         });
 
-        String pageUrl = "https://gemma416okl.com/play/" + imdbId;
-        extractWebView.loadUrl(pageUrl);
+        webView.loadUrl("https://gemma416okl.com/play/" + imdbId);
 
         handler.postDelayed(() -> {
-            if (!m3u8Found) {
-                log("WebView timeout after 45s", "err");
+            if (!found) {
+                setStatus("Timeout - stream not found");
                 finishExtraction();
             }
-        }, 45000);
+        }, 60000);
     }
 
-    private void startPolling(WebView view) {
-        Runnable poll = new Runnable() {
-            @Override
-            public void run() {
-                if (m3u8Found) return;
-                view.evaluateJavascript(
-                    "(function(){" +
-                    "  try {" +
-                    "    var vids = document.querySelectorAll('video');" +
-                    "    for(var i=0;i<vids.length;i++){" +
-                    "      if(vids[i].src && vids[i].src.indexOf('.m3u8') > -1){" +
-                    "        window.JSI.onM3U8(vids[i].src);" +
-                    "        return;" +
-                    "      }" +
-                    "    }" +
-                    "  } catch(e){}" +
-                    "})()", null);
-                if (!m3u8Found) {
-                    handler.postDelayed(this, 2000);
-                }
-            }
-        };
-        handler.postDelayed(poll, 3000);
-    }
-
-    private class JsInterface {
-        @JavascriptInterface
-        public void onM3U8(String url) {
-            if (!m3u8Found && url != null && url.contains(".m3u8")) {
-                m3u8Found = true;
-                handler.post(() -> {
-                    log("M3U8 from JS!", "ok");
-                    showM3U8(url);
-                });
-            }
-        }
-
-        @JavascriptInterface
-        public void onConfig(String json) {
-            log("Config: " + json, "info");
-        }
-
-        @JavascriptInterface
-        public void onError(String msg) {
-            log("JS: " + msg, "err");
-        }
-    }
-
-    private void showM3U8(String url) {
-        m3u8Box.setVisibility(View.VISIBLE);
+    private void onM3U8Found(String url) {
+        progress.setVisibility(View.GONE);
+        statusText.setVisibility(View.GONE);
+        resultBox.setVisibility(View.VISIBLE);
         m3u8Link.setText(url);
-        log("URL: " + url, "ok");
-        startPlayer(url);
         finishExtraction();
         destroyWebView();
+        startPlayer(url);
     }
 
-    private void startPlayer(String m3u8Url) {
+    private void startPlayer(String url) {
         playerView.setVisibility(View.VISIBLE);
         releasePlayer();
 
@@ -234,7 +170,7 @@ public class MainActivity extends AppCompatActivity {
 
         HlsMediaSource hlsSource = new HlsMediaSource.Factory(dsFactory)
                 .setAllowChunklessPreparation(true)
-                .createMediaSource(MediaItem.fromUri(m3u8Url));
+                .createMediaSource(MediaItem.fromUri(url));
 
         player = new ExoPlayer.Builder(this)
                 .setMediaSourceFactory(new com.google.android.exoplayer2.source.DefaultMediaSourceFactory(dsFactory))
@@ -254,17 +190,18 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void destroyWebView() {
-        if (extractWebView != null) {
-            extractWebView.stopLoading();
-            extractWebView.setWebViewClient(null);
-            extractWebView.destroy();
-            extractWebView = null;
+        if (webView != null) {
+            webView.stopLoading();
+            webView.setWebViewClient(null);
+            webView.destroy();
+            webView = null;
         }
     }
 
     private void finishExtraction() {
         handler.post(() -> {
             extractBtn.setEnabled(true);
+            extractBtn.setAlpha(1f);
             progress.setVisibility(View.GONE);
         });
     }
