@@ -10,67 +10,145 @@
         android:layout_height="0dp"
         android:layout_weight="1"
         android:orientation="vertical"
-        android:padding="20dp">
+        android:padding="16dp">
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="⚡ M3U8 Extractor"
             android:textColor="#e6edf3"
-            android:textSize="24sp"
+            android:textSize="22sp"
             android:textStyle="bold"
-            android:layout_marginBottom="16dp" />
+            android:layout_marginBottom="12dp" />
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
-            android:layout_marginBottom="12dp">
+            android:layout_marginBottom="8dp">
 
             <EditText
                 android:id="@+id/imdbInput"
                 android:layout_width="0dp"
-                android:layout_height="48dp"
+                android:layout_height="44dp"
                 android:layout_weight="1"
                 android:hint="IMDb ID (e.g. tt0427340)"
                 android:textColorHint="#30363d"
                 android:textColor="#e6edf3"
                 android:background="@drawable/input_bg"
-                android:padding="12dp"
+                android:padding="10dp"
                 android:singleLine="true"
                 android:inputType="text"
-                android:textSize="15sp"
-                android:layout_marginEnd="8dp" />
+                android:textSize="14sp"
+                android:layout_marginEnd="6dp" />
 
             <Button
                 android:id="@+id/extractBtn"
                 android:layout_width="wrap_content"
-                android:layout_height="48dp"
+                android:layout_height="44dp"
                 android:text="Extract"
                 android:background="@drawable/btn_bg"
                 android:textColor="#fff"
-                android:textSize="14sp"
+                android:textSize="13sp"
                 android:textStyle="bold"
-                android:paddingStart="20dp"
-                android:paddingEnd="20dp" />
+                android:paddingStart="16dp"
+                android:paddingEnd="16dp" />
         </LinearLayout>
 
         <ProgressBar
             android:id="@+id/progress"
             android:layout_width="match_parent"
-            android:layout_height="3dp"
+            android:layout_height="2dp"
             android:visibility="gone"
             style="?android:attr/progressBarStyleHorizontal"
             android:progressTint="#7c3aed"
-            android:layout_marginBottom="8dp" />
+            android:layout_marginBottom="6dp" />
 
-        <Spinner
-            android:id="@+id/langSpinner"
+        <LinearLayout
+            android:id="@+id/selectorBox"
             android:layout_width="match_parent"
-            android:layout_height="44dp"
-            android:background="@drawable/input_bg"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
             android:visibility="gone"
-            android:layout_marginBottom="8dp" />
+            android:layout_marginBottom="6dp">
+
+            <LinearLayout
+                android:id="@+id/seasonRow"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:visibility="gone"
+                android:layout_marginBottom="4dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="36dp"
+                    android:text="Season "
+                    android:textColor="#8b949e"
+                    android:textSize="12sp"
+                    android:gravity="center"
+                    android:layout_marginEnd="4dp" />
+
+                <Spinner
+                    android:id="@+id/seasonSpinner"
+                    android:layout_width="0dp"
+                    android:layout_height="36dp"
+                    android:layout_weight="1"
+                    android:background="@drawable/input_bg"
+                    android:textSize="13sp" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/episodeRow"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:visibility="gone"
+                android:layout_marginBottom="4dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="36dp"
+                    android:text="Episode "
+                    android:textColor="#8b949e"
+                    android:textSize="12sp"
+                    android:gravity="center"
+                    android:layout_marginEnd="4dp" />
+
+                <Spinner
+                    android:id="@+id/episodeSpinner"
+                    android:layout_width="0dp"
+                    android:layout_height="36dp"
+                    android:layout_weight="1"
+                    android:background="@drawable/input_bg"
+                    android:textSize="13sp" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/langRow"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:visibility="gone">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="36dp"
+                    android:text="Audio "
+                    android:textColor="#8b949e"
+                    android:textSize="12sp"
+                    android:gravity="center"
+                    android:layout_marginEnd="4dp" />
+
+                <Spinner
+                    android:id="@+id/langSpinner"
+                    android:layout_width="0dp"
+                    android:layout_height="36dp"
+                    android:layout_weight="1"
+                    android:background="@drawable/input_bg"
+                    android:textSize="13sp" />
+            </LinearLayout>
+        </LinearLayout>
 
         <LinearLayout
             android:id="@+id/resultBox"
@@ -78,28 +156,18 @@
             android:layout_height="wrap_content"
             android:orientation="vertical"
             android:background="#111119"
-            android:padding="12dp"
+            android:padding="10dp"
             android:visibility="gone"
-            android:layout_marginBottom="8dp">
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="M3U8 URL"
-                android:textColor="#7c3aed"
-                android:textSize="11sp"
-                android:textStyle="bold" />
+            android:layout_marginBottom="6dp">
 
             <TextView
                 android:id="@+id/m3u8Link"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:textColor="#3fb950"
-                android:textSize="12sp"
+                android:textSize="11sp"
                 android:fontFamily="monospace"
-                android:padding="8dp"
-                android:background="#0a0a0f"
-                android:maxLines="3"
+                android:maxLines="2"
                 android:ellipsize="middle"
                 android:textIsSelectable="true" />
 
@@ -107,36 +175,36 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
-                android:layout_marginTop="8dp">
+                android:layout_marginTop="6dp">
 
                 <Button
                     android:id="@+id/copyBtn"
                     android:layout_width="0dp"
-                    android:layout_height="40dp"
+                    android:layout_height="36dp"
                     android:layout_weight="1"
                     android:text="📋 Copy"
                     android:background="@drawable/btn_bg"
                     android:textColor="#fff"
-                    android:textSize="13sp"
-                    android:layout_marginEnd="6dp" />
+                    android:textSize="12sp"
+                    android:layout_marginEnd="4dp" />
 
                 <Button
                     android:id="@+id/playBtn"
                     android:layout_width="0dp"
-                    android:layout_height="40dp"
+                    android:layout_height="36dp"
                     android:layout_weight="1"
                     android:text="▶ Play"
                     android:background="@drawable/btn_play_bg"
                     android:textColor="#fff"
-                    android:textSize="13sp"
-                    android:layout_marginStart="6dp" />
+                    android:textSize="12sp"
+                    android:layout_marginStart="4dp" />
             </LinearLayout>
         </LinearLayout>
 
         <com.google.android.exoplayer2.ui.PlayerView
             android:id="@+id/playerView"
             android:layout_width="match_parent"
-            android:layout_height="220dp"
+            android:layout_height="200dp"
             android:visibility="gone"
             android:background="#000" />
 
@@ -145,26 +213,26 @@
             android:layout_height="wrap_content"
             android:text="Logs"
             android:textColor="#484f58"
-            android:textSize="12sp"
+            android:textSize="11sp"
             android:textStyle="bold"
-            android:layout_marginTop="8dp"
-            android:layout_marginBottom="4dp" />
+            android:layout_marginTop="4dp"
+            android:layout_marginBottom="2dp" />
 
         <ScrollView
             android:layout_width="match_parent"
             android:layout_height="0dp"
             android:layout_weight="1"
             android:background="#0d0d14"
-            android:padding="8dp">
+            android:padding="6dp">
 
             <TextView
                 android:id="@+id/logText"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:textColor="#6e7681"
-                android:textSize="11sp"
+                android:textSize="10sp"
                 android:fontFamily="monospace"
-                android:lineSpacingExtra="2dp" />
+                android:lineSpacingExtra="1dp" />
         </ScrollView>
 
     </LinearLayout>
