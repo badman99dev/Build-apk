@@ -238,7 +238,11 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void analyzeStructure(JSONArray arr) throws Exception {
-        JSONObject first = arr.getJSONObject(0);
+        Object firstObj = arr.get(0);
+        if (!(firstObj instanceof JSONObject)) {
+            log("Unexpected format", "err"); return;
+        }
+        JSONObject first = (JSONObject) firstObj;
 
         // Check if has seasons (folder with episode numbers)
         boolean hasSeasons = first.has("folder") && first.opt("episode") == null && !first.optString("file", "").startsWith("~");
@@ -276,8 +280,10 @@ public class MainActivity extends AppCompatActivity {
             log("━━━ Movie: " + arr.length() + " stream(s) ━━━", "ok");
             currentLanguages.clear();
             for (int i = 0; i < arr.length(); i++) {
-                JSONObject item = arr.getJSONObject(i);
-                currentLanguages.add(new StreamInfo(item.optString("title", "Stream " + (i+1)), item.optString("file", "")));
+                Object item = arr.get(i);
+                if (!(item instanceof JSONObject)) continue;
+                JSONObject obj = (JSONObject) item;
+                currentLanguages.add(new StreamInfo(obj.optString("title", "Stream " + (i+1)), obj.optString("file", "")));
             }
             handler.post(() -> {
                 selectorBox.setVisibility(View.VISIBLE);
@@ -299,7 +305,9 @@ public class MainActivity extends AppCompatActivity {
 
         try {
             for (int i = 0; i < folder.length(); i++) {
-                JSONObject ep = folder.getJSONObject(i);
+                Object item = folder.get(i);
+                if (!(item instanceof JSONObject)) continue;
+                JSONObject ep = (JSONObject) item;
                 if (ep.has("episode") || ep.has("folder")) {
                     currentEpisodes.add(new EpisodeInfo(ep.optString("title", ep.optString("episode", "E" + (i+1))), ep.optString("id", ""), ep.optJSONArray("folder")));
                 } else if (ep.has("file")) {
@@ -330,11 +338,16 @@ public class MainActivity extends AppCompatActivity {
                         if (lang.has("file")) {
                             currentLanguages.add(new StreamInfo(lang.optString("title", "Lang " + (i+1)), lang.optString("file", "")));
                         } else if (lang.has("folder")) {
-                            JSONArray sub = lang.getJSONArray("folder");
-                            for (int j = 0; j < sub.length(); j++) {
-                                JSONObject subItem = sub.getJSONObject(j);
-                                if (subItem.has("file")) {
-                                    currentLanguages.add(new StreamInfo(subItem.optString("title", lang.optString("title", "L" + (i+1))), subItem.optString("file", "")));
+                            JSONArray sub = lang.optJSONArray("folder");
+                            if (sub != null) {
+                                for (int j = 0; j < sub.length(); j++) {
+                                    Object subItem = sub.get(j);
+                                    if (subItem instanceof JSONObject) {
+                                        JSONObject subObj = (JSONObject) subItem;
+                                        if (subObj.has("file")) {
+                                            currentLanguages.add(new StreamInfo(subObj.optString("title", lang.optString("title", "L" + (i+1))), subObj.optString("file", "")));
+                                        }
+                                    }
                                 }
                             }
                         }
