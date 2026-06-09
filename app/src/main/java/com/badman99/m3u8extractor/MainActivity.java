@@ -189,14 +189,14 @@ public class MainActivity extends AppCompatActivity {
                 String url = PLAYER_BASE + imdbId;
                 log("━━━ Step 1: GET " + url, "info");
                 String html = httpGet(url, REFERER);
-                if (html == null) { log("FAILED: page fetch", "err"); finish(); return; }
+                if (html == null) { log("FAILED: page fetch", "err"); done(); return; }
                 log("Response: " + html.length() + " bytes", "ok");
 
                 Matcher m = Pattern.compile("let p3 = (\\{[^;]+\\});").matcher(html);
                 if (!m.find() && html.contains("HDVBPlayer")) {
                     m = Pattern.compile("new HDVBPlayer\\((\\{[^;]+\\})\\)").matcher(html);
                 }
-                if (!m.find()) { log("No config found", "err"); finish(); return; }
+                if (!m.find()) { log("No config found", "err"); done(); return; }
 
                 JSONObject p3 = new JSONObject(m.group(1).replace("\\/", "/"));
                 String file = p3.optString("file", "");
@@ -210,18 +210,18 @@ public class MainActivity extends AppCompatActivity {
 
                 log("━━━ Step 2: POST playlist ━━━", "info");
                 String resp = httpPost(file, REFERER, csrfKey);
-                if (resp == null) { log("FAILED: playlist", "err"); finish(); return; }
+                if (resp == null) { log("FAILED: playlist", "err"); done(); return; }
                 log("Response: " + resp.length() + " chars", "ok");
 
                 Object parsed = parseResponse(resp);
-                if (parsed == null) { log("Parse failed", "err"); finish(); return; }
+                if (parsed == null) { log("Parse failed", "err"); done(); return; }
 
                 JSONArray arr = null;
                 if (parsed instanceof JSONArray) arr = (JSONArray) parsed;
                 else if (parsed instanceof String && ((String) parsed).contains(".m3u8")) {
                     currentM3u8 = ((String) parsed).trim();
                     handler.post(() -> showResult(currentM3u8));
-                    finish(); return;
+                    done(); return;
                 }
 
                 if (arr != null) analyzeStructure(arr);
@@ -229,11 +229,11 @@ public class MainActivity extends AppCompatActivity {
             } catch (Exception e) {
                 log("Error: " + e.getMessage(), "err");
             }
-            finish();
+            done();
         }).start();
     }
 
-    private void finish() {
+    private void done() {
         handler.post(() -> { extractBtn.setEnabled(true); extractBtn.setAlpha(1f); progress.setVisibility(View.GONE); });
     }
 
