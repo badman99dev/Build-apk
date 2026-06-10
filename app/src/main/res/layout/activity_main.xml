@@ -208,6 +208,39 @@
             android:visibility="gone"
             android:background="#000" />
 
+        <LinearLayout
+            android:id="@+id/debugBox"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:visibility="gone"
+            android:background="#1c1008"
+            android:padding="8dp"
+            android:layout_marginBottom="4dp">
+
+            <TextView
+                android:id="@+id/debugInfo"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="📎 Debug data uploaded"
+                android:textColor="#eab308"
+                android:textSize="11sp"
+                android:fontFamily="monospace"
+                android:gravity="center_vertical" />
+
+            <Button
+                android:id="@+id/debugCopyBtn"
+                android:layout_width="wrap_content"
+                android:layout_height="32dp"
+                android:text="Copy Links"
+                android:background="@drawable/btn_bg"
+                android:textColor="#fff"
+                android:textSize="11sp"
+                android:paddingStart="10dp"
+                android:paddingEnd="10dp" />
+        </LinearLayout>
+
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
